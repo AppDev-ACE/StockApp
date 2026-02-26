@@ -9,8 +9,9 @@ class TutorialPage extends StatelessWidget {
       backgroundColor: Colors.black,
 
       appBar: AppBar(
-        title: const Text("Tutorial"),
+        title: const Text("Tutorial", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
+        centerTitle: true,
       ),
 
       body: const Center(

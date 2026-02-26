@@ -9,8 +9,9 @@ class MarketPage extends StatelessWidget {
       backgroundColor: Colors.black,
 
       appBar: AppBar(
-        title: const Text("Market"),
+        title: const Text("Market", style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
+        centerTitle: true,
       ),
 
       body: const Center(
