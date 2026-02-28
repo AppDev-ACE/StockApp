@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'stock_detail_page.dart';
 
 class Stock {
   final String name;
-  final int qty;
+  int qty; 
   final double price;
 
   Stock(this.name, this.qty, this.price);
@@ -10,8 +11,14 @@ class Stock {
   double get total => qty * price;
 }
 
-class StockPage extends StatelessWidget {
-  StockPage({super.key});
+class StockPage extends StatefulWidget {
+  const StockPage({super.key});
+
+  @override
+  State<StockPage> createState() => _StockPageState();
+}
+
+class _StockPageState extends State<StockPage> {
 
   final List<Stock> stocks = [
     Stock("Apple", 10, 180),
@@ -47,7 +54,6 @@ class StockPage extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 25),
                 padding: const EdgeInsets.all(60),
-
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [
@@ -101,60 +107,77 @@ class StockPage extends StatelessWidget {
               itemBuilder: (context, index) {
                 final stock = stocks[index];
 
-                return Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xff1a1a1a),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                return GestureDetector(
+                  onTap: () async {
+                    final updatedStock = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StockDetailPage(stock: stock),
+                      ),
+                    );
 
-                  padding: const EdgeInsets.all(16),
+                    if (updatedStock != null) {
+                      setState(() {
+                        stock.qty = updatedStock.qty;
+                      });
+                    }
+                  },
 
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xff1a1a1a),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
 
-                    children: [
-                      CircleAvatar(
-                        radius: 25,
-                        backgroundColor: Colors.blueAccent,
-                        child: Text(
-                          stock.name[0],
+                    padding: const EdgeInsets.all(16),
+
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+
+                      children: [
+                        CircleAvatar(
+                          radius: 25,
+                          backgroundColor: Colors.blueAccent,
+                          child: Text(
+                            stock.name[0],
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        Text(
+                          stock.name,
                           style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 20,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+
+                        const SizedBox(height: 5),
+
+                        Text(
+                          "${stock.qty} shares",
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+
+                        const Spacer(),
+
+                        Text(
+                          "₹${stock.total.toStringAsFixed(0)}",
+                          style: const TextStyle(
+                            color: Colors.blueAccent,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-
-                      const SizedBox(height: 15),
-
-                      Text(
-                        stock.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-
-                      const SizedBox(height: 5),
-
-                      Text(
-                        "${stock.qty} shares",
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-
-                      const Spacer(),
-
-                      Text(
-                        "₹${stock.total.toStringAsFixed(0)}",
-                        style: const TextStyle(
-                          color: Colors.blueAccent,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
