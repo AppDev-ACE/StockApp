@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:stockapp/pages/HomePage.dart';
-import 'package:stockapp/pages/MarketPage.dart';
-import 'package:stockapp/pages/TutorialPage.dart';
+import 'package:stockapp/pages/login_screen.dart';
+import 'package:stockapp/pages/main_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,55 +13,56 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: const MainPage(),
+      home: AuthCheck(),
     );
   }
 }
 
-class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+class AuthCheck extends StatefulWidget {
+  const AuthCheck({super.key});
 
   @override
-  State<MainPage> createState() => _MainPageState();
+  State<AuthCheck> createState() => _AuthCheckState();
 }
 
-class _MainPageState extends State<MainPage> {
-  int currentIndex = 0;
+class _AuthCheckState extends State<AuthCheck> {
+  @override
+  void initState() {
+    super.initState();
+    _checkLogin();
+  }
 
-  final pages = [StockPage(), MarketPage(), TutorialPage()];
+  Future<void> _checkLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token");
+
+    if (!mounted) return;
+
+    if (token == null || token.isEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginScreen(),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MainPage(token: token),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: pages[currentIndex],
-
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.black,
-
-        selectedItemColor: Colors.blue,
-
-        unselectedItemColor: Colors.grey,
-
-        currentIndex: currentIndex,
-
-        onTap: (index) {
-          setState(() {
-            currentIndex = index;
-          });
-        },
-
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-
-          BottomNavigationBarItem(
-            icon: Icon(Icons.show_chart),
-            label: "Market",
-          ),
-
-          BottomNavigationBarItem(icon: Icon(Icons.school), label: "Tutorial"),
-        ],
+    return const Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: CircularProgressIndicator(),
       ),
     );
   }
