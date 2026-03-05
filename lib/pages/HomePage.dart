@@ -1,254 +1,149 @@
-// ignore: file_names
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'stock_detail_page.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import '../core/theme/app_theme.dart';
+import 'stock_details_page.dart';
 
-class Stock {
-  final String name;
-  final int qty;
-  final double price;
-  final double changePercent;
-
-  const Stock(this.name, this.qty, this.price, this.changePercent);
-
-  double get total => qty * price;
-}
-
-class StockPage extends StatelessWidget {
+class StockPage extends StatefulWidget {
   final String token;
 
-  const StockPage({
-    super.key,
-    required this.token,
-  });
+  const StockPage({super.key, required this.token});
 
-  final double startingPoints = 20000;
+  @override
+  State<StockPage> createState() => _StockPageState();
+}
 
-  final List<Stock> stocks = const [
-    Stock("Apple", 10, 180, 1.5),
-    Stock("Tesla", 5, 250, -2.1),
-    Stock("Google", 2, 2800, 0.8),
-    Stock("Amazon", 1, 3400, -1.2),
-    Stock("Microsoft", 6, 320, 2.3),
-    Stock("Nvidia", 3, 900, 4.2),
-  ];
+class _StockPageState extends State<StockPage> {
 
-  double get investedValue =>
-      stocks.fold(0.0, (sum, stock) => sum + stock.total);
+  WebSocketChannel? channel;
 
-  double get availableCash =>
-      (startingPoints - investedValue).clamp(0, double.infinity);
+  double balance = 0;
+  double portfolioValue = 0;
+  double netWorth = 0;
+  double profitLoss = 0;
 
-  double get portfolioTotal => investedValue + availableCash;
+  List portfolio = [];
 
-  double get dailyChangeValue =>
-      stocks.fold(0.0, (sum, s) => sum + (s.total * s.changePercent / 100));
+  bool connected = false;
 
-  double get dailyChangePercent =>
-      investedValue == 0 ? 0 : (dailyChangeValue / investedValue) * 100;
+  @override
+  void initState() {
+    super.initState();
+    connectSocket();
+  }
 
-  Stock? get bestPerformer =>
-      stocks.isEmpty
-          ? null
-          : stocks.reduce((a, b) =>
-              a.changePercent > b.changePercent ? a : b);
+  void connectSocket() {
 
-  Stock? get worstPerformer =>
-      stocks.isEmpty
-          ? null
-          : stocks.reduce((a, b) =>
-              a.changePercent < b.changePercent ? a : b);
+    channel = WebSocketChannel.connect(
+      Uri.parse("wss://daksh-ldw4.onrender.com?token=${widget.token}")
+    );
+
+    channel!.stream.listen((message) {
+
+      final data = jsonDecode(message);
+
+      if (data["type"] == "PORTFOLIO_UPDATE") {
+
+        if (!mounted) return;
+
+        setState(() {
+
+          balance = (data["balance"] ?? 0).toDouble();
+          portfolioValue = (data["portfolioValue"] ?? 0).toDouble();
+          netWorth = (data["netWorth"] ?? 0).toDouble();
+          profitLoss = (data["profitLoss"] ?? 0).toDouble();
+
+          portfolio = data["portfolio"] ?? [];
+
+          connected = true;
+        });
+      }
+
+    });
+  }
+
+  @override
+  void dispose() {
+    channel?.sink.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bool isPositive = dailyChangePercent >= 0;
 
-    final double investedRatio =
-        portfolioTotal == 0 ? 0 : (investedValue / portfolioTotal).clamp(0, 1);
+    bool positive = profitLoss >= 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      backgroundColor: AppTheme.background,
+
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.surface,
         elevation: 0,
-        title: const Text(
-          "ACELL Portfolio",
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text("ACELL Portfolio"),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
 
-            const SizedBox(height: 20),
-
-            /// Portfolio Summary
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
+      body: connected
+          ? SingleChildScrollView(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161B22),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.05),
-                ),
-              ),
+
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  const Text(
-                    "Total Portfolio Value",
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  /// NET WORTH CARD
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
 
-                  const SizedBox(height: 6),
-
-                  Text(
-                    "₹ ${portfolioTotal.toStringAsFixed(0)}",
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Row(
-                    children: [
-                      Icon(
-                        isPositive
-                            ? Icons.arrow_upward
-                            : Icons.arrow_downward,
-                        size: 14,
-                        color: isPositive
-                            ? Colors.greenAccent
-                            : Colors.redAccent,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        "${dailyChangePercent >= 0 ? "+" : ""}${dailyChangePercent.toStringAsFixed(2)}% Today",
-                        style: TextStyle(
-                          color: isPositive
-                              ? Colors.greenAccent
-                              : Colors.redAccent,
-                        ),
-                      )
-                    ],
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  LinearProgressIndicator(
-                    value: investedRatio,
-                    backgroundColor: Colors.grey.withOpacity(0.2),
-                    color: Colors.greenAccent,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Invested: ₹${investedValue.toStringAsFixed(0)}",
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                      Text(
-                        "Available: ₹${availableCash.toStringAsFixed(0)}",
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            /// Holdings
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: stocks.length,
-              itemBuilder: (context, index) {
-                final stock = stocks[index];
-
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            StockDetailPage(symbol: stock.name),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 15),
-                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF161B22),
-                      borderRadius: BorderRadius.circular(20),
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(22),
                     ),
-                    child: Row(
+
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
 
-                        CircleAvatar(
-                          radius: 25,
-                          backgroundColor: Colors.blueAccent,
-                          child: Text(
-                            stock.name[0],
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        const Text(
+                          "Total Net Worth",
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        Text(
+                          "₹ ${netWorth.toStringAsFixed(0)}",
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
                           ),
                         ),
 
-                        const SizedBox(width: 15),
+                        const SizedBox(height: 8),
 
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stock.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                "${stock.qty} shares",
-                                style: const TextStyle(
-                                    color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.end,
+                        Row(
                           children: [
-                            Text(
-                              "₹ ${stock.total.toStringAsFixed(0)}",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
+
+                            Icon(
+                              positive
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
+                              color: positive
+                                  ? AppTheme.accentGreen
+                                  : Colors.redAccent,
+                              size: 16,
                             ),
+
+                            const SizedBox(width: 4),
+
                             Text(
-                              "${stock.changePercent >= 0 ? "+" : ""}${stock.changePercent}%",
+                              "₹${profitLoss.toStringAsFixed(0)} today",
                               style: TextStyle(
-                                color:
-                                    stock.changePercent >= 0
-                                        ? Colors.greenAccent
-                                        : Colors.redAccent,
+                                color: positive
+                                    ? AppTheme.accentGreen
+                                    : Colors.redAccent,
                               ),
                             ),
                           ],
@@ -256,13 +151,200 @@ class StockPage extends StatelessWidget {
                       ],
                     ),
                   ),
-                );
-              },
-            ),
 
-            const SizedBox(height: 40),
-          ],
-        ),
+                  const SizedBox(height: 20),
+
+                  /// CASH + INVESTED
+                  Row(
+                    children: [
+
+                      Expanded(
+                        child: infoCard(
+                          "Cash Balance",
+                          balance,
+                          Icons.account_balance_wallet,
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: infoCard(
+                          "Invested",
+                          portfolioValue,
+                          Icons.show_chart,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Holdings",
+                    style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  portfolio.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              "No stocks purchased yet",
+                              style: TextStyle(color: AppTheme.textSecondary),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: portfolio.length,
+
+                          itemBuilder: (context, index) {
+
+                            final stock = portfolio[index];
+
+                            final symbol = stock["symbol"] ?? "";
+                            final quantity = stock["quantity"] ?? 0;
+                            final avgPrice =
+                                (stock["avgPrice"] ?? 0).toDouble();
+
+                            return GestureDetector(
+
+                              onTap: () {
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => StockDetailScreen(
+                                      symbol: symbol,
+                                      price: avgPrice,
+                                      token: widget.token,
+                                      quantity: quantity,
+                                      avgPrice: avgPrice,
+                                    ),
+                                  ),
+                                );
+
+                              },
+
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+
+                                decoration: BoxDecoration(
+                                  color: AppTheme.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+
+                                  children: [
+
+                                    Row(
+                                      children: [
+
+                                        CircleAvatar(
+                                          backgroundColor: AppTheme.accentBlue,
+                                          child: Text(
+                                            symbol.isNotEmpty
+                                                ? symbol[0]
+                                                : "?",
+                                          ),
+                                        ),
+
+                                        const SizedBox(width: 12),
+
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+
+                                          children: [
+
+                                            Text(
+                                              symbol,
+                                              style: const TextStyle(
+                                                color: AppTheme.textPrimary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+
+                                            Text(
+                                              "$quantity shares",
+                                              style: const TextStyle(
+                                                  color: AppTheme.textSecondary),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+
+                                    Text(
+                                      "Avg ₹${avgPrice.toStringAsFixed(1)}",
+                                      style: const TextStyle(
+                                        color: AppTheme.accentGreen,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ],
+              ),
+            )
+          : const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget infoCard(String title, double value, IconData icon) {
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Row(
+            children: [
+
+              const Icon(Icons.circle, color: AppTheme.textSecondary, size: 10),
+
+              const SizedBox(width: 6),
+
+              Text(
+                title,
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            "₹ ${value.toStringAsFixed(0)}",
+            style: const TextStyle(
+              color: AppTheme.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

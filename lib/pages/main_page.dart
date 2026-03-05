@@ -16,8 +16,9 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  late final List<Widget> pages;
+
   int currentIndex = 0;
+  late final List<Widget> pages;
 
   @override
   void initState() {
@@ -30,25 +31,32 @@ class _MainPageState extends State<MainPage> {
     ];
   }
 
+  void changeTab(int index) {
+    if (index == currentIndex) return;
+
+    setState(() {
+      currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+
       body: IndexedStack(
         index: currentIndex,
         children: pages,
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161B22),
         selectedItemColor: const Color(0xFF00E676),
         unselectedItemColor: Colors.grey,
         currentIndex: currentIndex,
         type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          setState(() {
-            currentIndex = index;
-          });
-        },
+        onTap: changeTab,
+
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet_outlined),

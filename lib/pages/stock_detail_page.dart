@@ -49,7 +49,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
     final response = await http.get(
       Uri.parse(
-          "http://localhost:3000/candles?symbol=${widget.symbol}&range=$selectedRange"),
+          "https://daksh-ldw4.onrender.com/candles?symbol=${widget.symbol}&range=$selectedRange"),
     );
 
     if (response.statusCode == 200) {
@@ -79,7 +79,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
     final bool isPositive = percentChange >= 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
       appBar: AppBar(
         backgroundColor: Colors.transparent,

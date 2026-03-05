@@ -108,7 +108,7 @@ class _LoginScreenState extends State<LoginScreen> {
       style: const TextStyle(color: Color(0xFFE6EDF3)),
       decoration: InputDecoration(
         filled: true,
-        fillColor: const Color(0xFF0D1117),
+        fillColor: Theme.of(context).scaffoldBackgroundColor,
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFF8B949E)),
         prefixIcon: Icon(icon, color: const Color(0xFF8B949E)),

@@ -1,117 +1,154 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../core/theme/app_theme.dart';
+import 'stock_details_page.dart';
 
 class MarketPage extends StatefulWidget {
+
   final String token;
 
-  const MarketPage({super.key, required this.token});
+  const MarketPage({
+    super.key,
+    required this.token,
+  });
 
   @override
   State<MarketPage> createState() => _MarketPageState();
 }
 
 class _MarketPageState extends State<MarketPage> {
-  late WebSocketChannel channel;
+
+  WebSocketChannel? channel;
 
   Map<String, dynamic> prices = {};
   Map<String, dynamic> filteredPrices = {};
-  bool isConnected = false;
 
-  final TextEditingController searchController = TextEditingController();
+  bool connected = false;
+
+  final TextEditingController searchController =
+      TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    connectWebSocket();
+    connectSocket();
   }
 
-  void connectWebSocket() {
+  void connectSocket() {
+
     channel = WebSocketChannel.connect(
-      Uri.parse("ws://localhost:3000?token=${widget.token}"),
+      Uri.parse("wss://daksh-ldw4.onrender.com?token=${widget.token}")
     );
 
-    channel.stream.listen(
-      (message) {
-        final data = jsonDecode(message);
+    channel!.stream.listen((message) {
 
-        if (data["type"] == "MARKET_TICK") {
-          final updatedPrices =
-              Map<String, dynamic>.from(data["prices"]);
+      final data = jsonDecode(message);
 
-          setState(() {
-            prices = updatedPrices;
+      if (data["type"] == "MARKET_TICK") {
 
-            // Maintain search state properly
-            if (searchController.text.isNotEmpty) {
-              _applyFilter(searchController.text);
-            } else {
-              filteredPrices = prices;
-            }
+        final updatedPrices =
+            Map<String, dynamic>.from(data["prices"]);
 
-            isConnected = true;
-          });
-        }
-      },
-      onError: (error) {
-        print("WebSocket Error: $error");
-      },
-      onDone: () {
-        print("WebSocket Closed");
-      },
-    );
+        if (!mounted) return;
+
+        setState(() {
+
+          prices = updatedPrices;
+
+          if (searchController.text.isEmpty) {
+            filteredPrices = prices;
+          } else {
+            applyFilter(searchController.text);
+          }
+
+          connected = true;
+        });
+      }
+
+    }, onError: (error) {
+
+      debugPrint("WebSocket error: $error");
+
+    }, onDone: () {
+
+      debugPrint("WebSocket closed");
+
+    });
   }
 
-  void _applyFilter(String query) {
-    final filtered = prices.entries
-        .where((entry) =>
-            entry.key.toLowerCase().contains(query.toLowerCase()))
-        .fold<Map<String, dynamic>>({}, (map, entry) {
-      map[entry.key] = entry.value;
-      return map;
+  void applyFilter(String query) {
+
+    final filtered = prices.entries.where((entry) {
+
+      return entry.key
+          .toLowerCase()
+          .contains(query.toLowerCase());
+
     });
 
-    filteredPrices = filtered;
+    filteredPrices = {
+      for (var e in filtered) e.key: e.value
+    };
   }
 
   @override
   void dispose() {
-    channel.sink.close();
+
+    channel?.sink.close();
     searchController.dispose();
+
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+
     final symbols = filteredPrices.keys.toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
-      body: isConnected
+      backgroundColor: AppTheme.background,
+
+      body: connected
           ? Column(
               children: [
-                const SizedBox(height: 40),
+
+                const SizedBox(height: 45),
 
                 /// SEARCH BAR
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+
                   child: TextField(
                     controller: searchController,
+
                     onChanged: (value) {
+
                       setState(() {
-                        _applyFilter(value);
+                        applyFilter(value);
                       });
+
                     },
-                    style: const TextStyle(color: Colors.white),
+
+                    style:
+                        const TextStyle(color: AppTheme.textPrimary),
+
                     decoration: InputDecoration(
                       hintText: "Search stock...",
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      prefixIcon:
-                          const Icon(Icons.search, color: Colors.grey),
+                      hintStyle: const TextStyle(
+                          color: AppTheme.textSecondary),
+
+                      prefixIcon: const Icon(
+                          Icons.search,
+                          color: AppTheme.textSecondary),
+
                       filled: true,
-                      fillColor: const Color(0xFF161B22),
+                      fillColor: AppTheme.surface,
+
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -124,57 +161,121 @@ class _MarketPageState extends State<MarketPage> {
                 Expanded(
                   child: ListView.builder(
                     itemCount: symbols.length,
-                    itemBuilder: (context, index) {
-                      final symbol = symbols[index];
-                      final price = filteredPrices[symbol];
 
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF161B22),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            /// STOCK NAME
-                            Text(
-                              symbol,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                    itemBuilder: (context, index) {
+
+                      final symbol = symbols[index];
+
+                      final price =
+                          (filteredPrices[symbol] ?? 0)
+                              .toDouble();
+
+                      return GestureDetector(
+
+                        onTap: () {
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  StockDetailScreen(
+                                symbol: symbol,
+                                price: price,
+                                token: widget.token,
                               ),
                             ),
+                          );
 
-                            Row(
-                              children: [
-                                /// PRICE
-                                Text(
-                                  "₹$price",
-                                  style: const TextStyle(
-                                    color: Colors.greenAccent,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
+                        },
 
-                                /// GRAPH ICON
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.show_chart,
-                                    color: Colors.blueAccent,
+                        child: Container(
+                          margin:
+                              const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8),
+
+                          padding:
+                              const EdgeInsets.all(16),
+
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius:
+                                BorderRadius.circular(
+                                    16),
+                          ),
+
+                          child: Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment
+                                    .spaceBetween,
+
+                            children: [
+
+                              /// SYMBOL
+                              Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+
+                                children: [
+
+                                  Text(
+                                    symbol,
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          AppTheme.textPrimary,
+                                      fontSize: 16,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                    ),
                                   ),
-                                  onPressed: () {
-                                    print("Open chart for $symbol");
-                                  },
-                                )
-                              ],
-                            )
-                          ],
+
+                                  const SizedBox(
+                                      height: 3),
+
+                                  const Text(
+                                    "Live Market",
+                                    style: TextStyle(
+                                      color:
+                                          AppTheme.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                ],
+                              ),
+
+                              /// PRICE
+                              Row(
+                                children: [
+
+                                  Text(
+                                    "₹${price.toStringAsFixed(2)}",
+                                    style:
+                                        const TextStyle(
+                                      color: AppTheme
+                                          .accentGreen,
+                                      fontSize: 15,
+                                      fontWeight:
+                                          FontWeight
+                                              .bold,
+                                    ),
+                                  ),
+
+                                  const SizedBox(
+                                      width: 12),
+
+                                  const Icon(
+                                    Icons
+                                        .show_chart_rounded,
+                                    color: AppTheme
+                                        .accentBlue,
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
                         ),
                       );
                     },

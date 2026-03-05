@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'core/theme/app_theme.dart';
 import 'package:stockapp/pages/login_screen.dart';
 import 'package:stockapp/pages/main_page.dart';
 
@@ -13,9 +13,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: AuthCheck(),
+      theme: AppTheme.darkTheme,
+      home: const AuthCheck(),
     );
   }
 }
