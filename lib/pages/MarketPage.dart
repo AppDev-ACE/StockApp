@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:stockapp/core/constants.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:provider/provider.dart';
+import '../provider/market_provider.dart';
 import '../core/theme/app_theme.dart';
 import 'stock_details_page.dart';
 
@@ -20,12 +19,7 @@ class MarketPage extends StatefulWidget {
 
 class _MarketPageState extends State<MarketPage> {
 
-  WebSocketChannel? channel;
-
-  Map<String, dynamic> prices = {};
-  Map<String, dynamic> filteredPrices = {};
-
-  bool connected = false;
+  Map<String, double> filteredPrices = {};
 
   final TextEditingController searchController =
       TextEditingController();
@@ -33,52 +27,19 @@ class _MarketPageState extends State<MarketPage> {
   @override
   void initState() {
     super.initState();
-    connectSocket();
+
+    /// connect socket via provider
+    // Future.microtask(() {
+    //   context.read<MarketProvider>().connect(widget.token);
+    // });
   }
 
-  void connectSocket() {
+  void applyFilter(String query, Map<String, double> prices) {
 
-    channel = WebSocketChannel.connect(
-      Uri.parse("${AppConstants.wsUrl}?token=${widget.token}")
-    );
-
-    channel!.stream.listen((message) {
-
-      final data = jsonDecode(message);
-
-      if (data["type"] == "MARKET_TICK") {
-
-        final updatedPrices =
-            Map<String, dynamic>.from(data["prices"]);
-
-        if (!mounted) return;
-
-        setState(() {
-
-          prices = updatedPrices;
-
-          if (searchController.text.isEmpty) {
-            filteredPrices = prices;
-          } else {
-            applyFilter(searchController.text);
-          }
-
-          connected = true;
-        });
-      }
-
-    }, onError: (error) {
-
-      debugPrint("WebSocket error: $error");
-
-    }, onDone: () {
-
-      debugPrint("WebSocket closed");
-
-    });
-  }
-
-  void applyFilter(String query) {
+    if (query.isEmpty) {
+      filteredPrices = prices;
+      return;
+    }
 
     final filtered = prices.entries.where((entry) {
 
@@ -96,7 +57,6 @@ class _MarketPageState extends State<MarketPage> {
   @override
   void dispose() {
 
-    channel?.sink.close();
     searchController.dispose();
 
     super.dispose();
@@ -105,16 +65,47 @@ class _MarketPageState extends State<MarketPage> {
   @override
   Widget build(BuildContext context) {
 
+    final prices = context.select((MarketProvider m) => m.prices);
+final marketRunning = context.select((MarketProvider m) => m.marketRunning);
+
+    
+
+  if (searchController.text.isEmpty) {
+  filteredPrices = prices;
+} else {
+  applyFilter(searchController.text, prices);
+}
+
     final symbols = filteredPrices.keys.toList();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
 
-      body: connected
-          ? Column(
+      body: prices.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : Column(
               children: [
 
                 const SizedBox(height: 45),
+
+                /// MARKET STATUS
+                if (!marketRunning)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    color: Colors.redAccent,
+                    child: const Center(
+                      child: Text(
+                        "MARKET CLOSED",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
 
                 /// SEARCH BAR
                 Padding(
@@ -127,7 +118,7 @@ class _MarketPageState extends State<MarketPage> {
                     onChanged: (value) {
 
                       setState(() {
-                        applyFilter(value);
+                        applyFilter(value, prices);
                       });
 
                     },
@@ -183,6 +174,7 @@ class _MarketPageState extends State<MarketPage> {
                                 symbol: symbol,
                                 price: price,
                                 token: widget.token,
+                                marketRunning: marketRunning,
                               ),
                             ),
                           );
@@ -283,9 +275,6 @@ class _MarketPageState extends State<MarketPage> {
                   ),
                 ),
               ],
-            )
-          : const Center(
-              child: CircularProgressIndicator(),
             ),
     );
   }

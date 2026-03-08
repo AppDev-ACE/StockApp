@@ -2,14 +2,17 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:stockapp/core/constants.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+//import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+import '../provider/market_provider.dart';
 
 class StockDetailScreen extends StatefulWidget {
   final String symbol;
   final double price;
   final String token;
+  final bool marketRunning; 
 
   final int? quantity;
   final double? avgPrice;
@@ -19,6 +22,7 @@ class StockDetailScreen extends StatefulWidget {
     required this.symbol,
     required this.price,
     required this.token,
+    required this.marketRunning,
     this.quantity,
     this.avgPrice,
   });
@@ -30,19 +34,22 @@ class StockDetailScreen extends StatefulWidget {
 class _StockDetailScreenState extends State<StockDetailScreen> {
 
   List<CandlestickSpot> candles = [];
-  WebSocketChannel? channel;
+  
 
   int lastIndex = 0;
   int maxCandles = 200;
 
   double currentPrice = 0;
   double previousPrice = 0;
+  //int lastProcessedCandle = -1;
 
   double minY = 0;
   double maxY = 0;
 
   bool loading = true;
   bool placingOrder = false;
+
+  bool marketRunning = true;
 
   final TransformationController chartTransform =
       TransformationController();
@@ -59,6 +66,8 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
   void initState() {
     super.initState();
 
+    marketRunning = widget.marketRunning;
+
     currentPrice = widget.price;
     previousPrice = widget.price;
 
@@ -66,7 +75,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     avgPrice = widget.avgPrice ?? 0;
 
     loadInitialCandles();
-    connectLiveFeed();
+    //connectLiveFeed();
   }
 
   /// AUTO SCROLL TO LATEST
@@ -169,98 +178,104 @@ void scrollToLatest() {
       low: min(last.low, price),
       close: price,
     );
+
+    updateChartRange();
   }
 
   /// LIVE FEED
-  void connectLiveFeed() {
+  // void connectLiveFeed() {
 
-    void connect() {
+  //   void connect() {
 
-      channel = WebSocketChannel.connect(
-        Uri.parse("${AppConstants.wsUrl}?token=${widget.token}"),
-      );
+  //     channel = WebSocketChannel.connect(
+  //       Uri.parse("${AppConstants.wsUrl}?token=${widget.token}"),
+  //     );
 
-      channel!.stream.listen(
+  //     channel!.stream.listen(
 
-            (message) async {
+  //           (message) async {
 
-          final data = jsonDecode(message);
+  //         final data = jsonDecode(message);
 
-          if (data["type"] == "MARKET_TICK") {
+  //         if (data["type"] == "MARKET_TICK") {
 
-            final prices = Map<String, dynamic>.from(data["prices"]);
+  //           setState(() {
+  //             marketRunning = data["marketRunning"] ?? true;
+  //           });
 
-            if (prices.containsKey(widget.symbol)) {
+  //           final prices = Map<String, dynamic>.from(data["prices"]);
 
-              double price = prices[widget.symbol].toDouble();
+  //           if (prices.containsKey(widget.symbol)) {
 
-              setState(() {
-                previousPrice = currentPrice;
-                currentPrice = price;
-                updateCurrentCandle(price);
-              });
-            }
+  //             double price = prices[widget.symbol].toDouble();
 
-            int newIndex = data["currentCandleIndex"];
+  //             setState(() {
+  //               previousPrice = currentPrice;
+  //               currentPrice = price;
+  //               updateCurrentCandle(price);
+  //             });
+  //           }
 
-            if (newIndex > lastIndex) {
+  //           int newIndex = data["currentCandleIndex"];
 
-              lastIndex = newIndex;
+  //           if (newIndex > lastIndex) {
 
-              final res = await http.get(
-                Uri.parse(
-                    "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}"
-                ),
-              );
+  //             lastIndex = newIndex;
 
-              if (res.statusCode != 200) return;
+  //             final res = await http.get(
+  //               Uri.parse(
+  //                   "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}"
+  //               ),
+  //             );
 
-              final json = jsonDecode(res.body);
-              final latest = json["candles"].last;
+  //             if (res.statusCode != 200) return;
 
-              final candle = CandlestickSpot(
-                x: lastIndex.toDouble(),
-                open: (latest["open"]).toDouble(),
-                high: (latest["high"]).toDouble(),
-                low: (latest["low"]).toDouble(),
-                close: (latest["close"]).toDouble(),
-              );
+  //             final json = jsonDecode(res.body);
+  //             final latest = json["candles"].last;
 
-              setState(() {
+  //             final candle = CandlestickSpot(
+  //               x: lastIndex.toDouble(),
+  //               open: (latest["open"]).toDouble(),
+  //               high: (latest["high"]).toDouble(),
+  //               low: (latest["low"]).toDouble(),
+  //               close: (latest["close"]).toDouble(),
+  //             );
 
-                candles.add(candle);
+  //             setState(() {
 
-                if (candles.length > maxCandles) {
-                  candles.removeAt(0);
-                }
-                selectedCandle = null;
-                updateChartRange();
-              });
+  //               candles.add(candle);
 
-              Future.delayed(const Duration(milliseconds: 60), () {
+  //               if (candles.length > maxCandles) {
+  //                 candles.removeAt(0);
+  //               }
+  //               selectedCandle = null;
+  //               updateChartRange();
+  //             });
 
-                //double candleWidth =
-                   // MediaQuery.of(context).size.width / 30;
+  //             Future.delayed(const Duration(milliseconds: 60), () {
 
-                scrollToLatest();
+  //               //double candleWidth =
+  //                  // MediaQuery.of(context).size.width / 30;
 
-              });
-            }
-          }
-        },
+  //               scrollToLatest();
 
-        onDone: () {
-          Future.delayed(const Duration(seconds: 3), connect);
-        },
+  //             });
+  //           }
+  //         }
+  //       },
 
-        onError: (_) {
-          Future.delayed(const Duration(seconds: 3), connect);
-        },
-      );
-    }
+  //       onDone: () {
+  //         Future.delayed(const Duration(seconds: 3), connect);
+  //       },
 
-    connect();
-  }
+  //       onError: (_) {
+  //         Future.delayed(const Duration(seconds: 3), connect);
+  //       },
+  //     );
+  //   }
+
+  //   connect();
+  // }
 
   /// BUY
   Future<void> buyStock() async {
@@ -373,16 +388,95 @@ void scrollToLatest() {
 
   @override
   void dispose() {
-    channel?.sink.close();
+    //channel?.sink.close();
     qtyController.dispose();
     chartScroll.dispose();
     chartTransform.dispose();
     super.dispose();
   }
 
+Future<void> loadNextCandle(int closedIndex) async {
+
+  try {
+
+    final res = await http.get(
+      Uri.parse("${AppConstants.baseUrl}/candles?symbol=${widget.symbol}")
+    );
+
+    if (res.statusCode != 200) return;
+
+    final json = jsonDecode(res.body);
+    final latest = json["candles"].last;
+
+    final candle = CandlestickSpot(
+      x: closedIndex.toDouble(),
+      open: (latest["open"]).toDouble(),
+      high: (latest["high"]).toDouble(),
+      low: (latest["low"]).toDouble(),
+      close: (latest["close"]).toDouble(),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+
+      candles.add(candle);
+
+      if (candles.length > maxCandles) {
+        candles.removeAt(0);
+      }
+
+      selectedCandle = null;
+
+      updateChartRange();
+
+    });
+
+    Future.delayed(const Duration(milliseconds: 120), scrollToLatest);
+
+  } catch (_) {}
+
+}
   @override
   Widget build(BuildContext context) {
 
+    final market = context.watch<MarketProvider>();
+
+    int newIndex = market.currentCandleIndex;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+
+  if (!mounted) return;
+
+  if (market.prices.containsKey(widget.symbol)) {
+
+    double newPrice = market.prices[widget.symbol]!;
+
+    if (newPrice != currentPrice) {
+
+      setState(() {
+        previousPrice = currentPrice;
+        currentPrice = newPrice;
+        updateCurrentCandle(newPrice);
+      });
+
+    }
+  }
+
+  if (newIndex > lastIndex) {
+
+    final int closedIndex = newIndex;
+
+    lastIndex = newIndex;
+
+    loadNextCandle(closedIndex);
+
+  }
+
+});
+
+    marketRunning = market.marketRunning;
+    
     double currentValue = quantity * currentPrice;
     double pnl = (currentPrice - avgPrice) * quantity;
 
@@ -497,7 +591,7 @@ void scrollToLatest() {
           child: LayoutBuilder(
             builder: (context, constraints) {
 
-              const double candleWidth = 12; // candle thickness
+              const double candleWidth = 14; // candle thickness
 
               double chartWidth =
                   max(candles.length * candleWidth, constraints.maxWidth);
@@ -549,7 +643,7 @@ candlestickTouchData: CandlestickTouchData(
 
           clipData: FlClipData.none(),
         ),
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
       ),
     ),
@@ -561,6 +655,22 @@ candlestickTouchData: CandlestickTouchData(
         ),
 ),
 
+
+          if (!marketRunning)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    color: Colors.redAccent,
+    child: const Center(
+      child: Text(
+        "MARKET CLOSED",
+        style: TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ),
+  ),
          /// TRADE PANEL
           Container(
             padding: const EdgeInsets.all(16),
@@ -597,7 +707,7 @@ candlestickTouchData: CandlestickTouchData(
                     Expanded(
                       child: ElevatedButton(
                         onPressed:
-                        placingOrder ? null : buyStock,
+                        (!marketRunning || placingOrder) ? null : buyStock,
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
                           Colors.greenAccent,
@@ -612,7 +722,7 @@ candlestickTouchData: CandlestickTouchData(
                     Expanded(
                       child: ElevatedButton(
                         onPressed:
-                        placingOrder ? null : sellStock,
+                        (!marketRunning || placingOrder) ? null : sellStock,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent,
                         ),

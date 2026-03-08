@@ -1,8 +1,13 @@
-import 'dart:convert';
+//import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+//import 'package:stockapp/core/constants.dart';
+//import '../services/socket_service.dart';
+import '../provider/market_provider.dart';
 import '../core/theme/app_theme.dart';
 import 'stock_details_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'login_screen.dart';
+import 'package:provider/provider.dart';
 
 class StockPage extends StatefulWidget {
   final String token;
@@ -15,61 +20,112 @@ class StockPage extends StatefulWidget {
 
 class _StockPageState extends State<StockPage> {
 
-  WebSocketChannel? channel;
+  //WebSocketChannel? channel;
+  // double balance = 0;
+  // double portfolioValue = 0;
+  // double netWorth = 0;
+  // double profitLoss = 0;
 
-  double balance = 0;
-  double portfolioValue = 0;
-  double netWorth = 0;
-  double profitLoss = 0;
+  // List portfolio = [];
 
-  List portfolio = [];
+  // bool connected = false;
 
-  bool connected = false;
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   connectSocket();
+  // }
 
-  @override
-  void initState() {
-    super.initState();
-    connectSocket();
-  }
+//   void connectSocket() {
 
-  void connectSocket() {
+//   SocketService.addListener(_handleSocket);
 
-    channel = WebSocketChannel.connect(
-      Uri.parse("wss://daksh-ldw4.onrender.com?token=${widget.token}")
-    );
+// }
 
-    channel!.stream.listen((message) {
+// void _handleSocket(dynamic data) {
 
-      final data = jsonDecode(message);
+//   if (data["type"] == "PORTFOLIO_UPDATE") {
 
-      if (data["type"] == "PORTFOLIO_UPDATE") {
+//     if (!mounted) return;
 
-        if (!mounted) return;
+//     setState(() {
 
-        setState(() {
+//       balance = (data["balance"] ?? 0).toDouble();
+//       portfolioValue = (data["portfolioValue"] ?? 0).toDouble();
+//       netWorth = (data["netWorth"] ?? 0).toDouble();
+//       profitLoss = (data["profitLoss"] ?? 0).toDouble();
 
-          balance = (data["balance"] ?? 0).toDouble();
-          portfolioValue = (data["portfolioValue"] ?? 0).toDouble();
-          netWorth = (data["netWorth"] ?? 0).toDouble();
-          profitLoss = (data["profitLoss"] ?? 0).toDouble();
+//       portfolio = data["portfolio"] ?? [];
 
-          portfolio = data["portfolio"] ?? [];
+//       connected = true;
 
-          connected = true;
-        });
-      }
+//     });
 
-    });
-  }
+//   }
 
-  @override
-  void dispose() {
-    channel?.sink.close();
-    super.dispose();
-  }
+// }
+ 
+  // @override
+  // void dispose() {
+  //   SocketService.removeListener(_handleSocket);
+  //   super.dispose();
+  // }
 
+
+  Future<void> logout() async {
+
+  final confirm = await showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, false);
+            },
+            child: const Text("Cancel"),
+          ),
+
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, true);
+            },
+            child: const Text("Logout"),
+          ),
+
+        ],
+      );
+    },
+  );
+
+  if (confirm != true) return;
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove("token");
+
+  if (!mounted) return;
+
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const LoginScreen(),
+    ),
+    (route) => false,
+  );
+}
   @override
   Widget build(BuildContext context) {
+
+    final market = context.watch<MarketProvider>();
+
+    final balance = market.balance;
+    final portfolioValue = market.portfolioValue;
+    final netWorth = market.netWorth;
+    final profitLoss = market.profitLoss;
+    final portfolio = market.portfolio;
 
     bool positive = profitLoss >= 0;
 
@@ -81,10 +137,17 @@ class _StockPageState extends State<StockPage> {
         elevation: 0,
         title: const Text("ACELL Portfolio"),
         centerTitle: true,
+        actions: [
+    IconButton(
+      icon: const Icon(Icons.logout),
+      onPressed: logout,
+    )
+  ],
       ),
 
-      body: connected
-          ? SingleChildScrollView(
+      body: portfolio.isEmpty && netWorth == 0
+    ? const Center(child: CircularProgressIndicator())
+    : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
 
               child: Column(
@@ -212,8 +275,8 @@ class _StockPageState extends State<StockPage> {
 
                             final symbol = stock["symbol"] ?? "";
                             final quantity = stock["quantity"] ?? 0;
-                            final avgPrice =
-                                (stock["avgPrice"] ?? 0).toDouble();
+                            final avgPrice = (stock["avgPrice"] ?? 0).toDouble();
+                            final currentPrice = (stock["currentPrice"] ?? avgPrice).toDouble();
 
                             return GestureDetector(
 
@@ -228,6 +291,7 @@ class _StockPageState extends State<StockPage> {
                                       token: widget.token,
                                       quantity: quantity,
                                       avgPrice: avgPrice,
+                                      marketRunning: context.read<MarketProvider>().marketRunning,  
                                     ),
                                   ),
                                 );
@@ -287,13 +351,28 @@ class _StockPageState extends State<StockPage> {
                                       ],
                                     ),
 
-                                    Text(
-                                      "Avg ₹${avgPrice.toStringAsFixed(1)}",
-                                      style: const TextStyle(
-                                        color: AppTheme.accentGreen,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
+                                    Column(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  children: [
+
+    Text(
+      "₹${currentPrice.toStringAsFixed(2)}",
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+
+    Text(
+      "Avg ₹${avgPrice.toStringAsFixed(1)}",
+      style: const TextStyle(
+        color: AppTheme.textSecondary,
+        fontSize: 12,
+      ),
+    ),
+
+  ],
+)
                                   ],
                                 ),
                               ),
@@ -303,7 +382,7 @@ class _StockPageState extends State<StockPage> {
                 ],
               ),
             )
-          : const Center(child: CircularProgressIndicator()),
+          
     );
   }
 

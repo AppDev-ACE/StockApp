@@ -67,7 +67,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          successMessage = "idwaAccount created successfully!";
+          successMessage = "Account created successfully!";
           errorMessage = "";
         });
 
@@ -90,7 +90,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        errorMessage = "Server not reachable. Check backend.";
+        errorMessage = "Network error. Please try again.";
         successMessage = "";
       });
     }

@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../core/constants.dart';
+//import 'package:web_socket_channel/web_socket_channel.dart';
+//import 'package:shared_preferences/shared_preferences.dart';
+//import '../core/constants.dart';
+import '../services/socket_service.dart';
 
 class LeaderboardPage extends StatefulWidget {
   final String token;
+  
 
   const LeaderboardPage({
     super.key,
@@ -18,7 +20,8 @@ class LeaderboardPage extends StatefulWidget {
 
 class _LeaderboardPageState extends State<LeaderboardPage> {
   List<dynamic> leaderboard = [];
-  WebSocketChannel? channel;
+  bool loading = true;
+  //WebSocketChannel? channel;
 
   @override
   void initState() {
@@ -26,30 +29,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     connectWebSocket();
   }
 
-  Future<void> connectWebSocket() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString("token");
+void connectWebSocket() {
 
-    if (token == null) return;
+  SocketService.addListener(_handleSocket);
 
-    channel = WebSocketChannel.connect(
-      Uri.parse("${AppConstants.wsUrl}?token=$token"),
-    );
+}
 
-    channel!.stream.listen((message) {
-      final data = jsonDecode(message);
+void _handleSocket(dynamic data) {
 
-      if (data["type"] == "LEADERBOARD_UPDATE") {
-        setState(() {
-          leaderboard = data["leaderboard"];
-        });
-      }
+  if (data["type"] == "LEADERBOARD_UPDATE") {
+
+    if (!mounted) return;
+
+    setState(() {
+      leaderboard = data["leaderboard"] ?? [];
+      loading = false;
     });
+
   }
+
+}
 
   @override
   void dispose() {
-    channel?.sink.close();
+    SocketService.removeListener(_handleSocket);
     super.dispose();
   }
 
@@ -58,10 +61,11 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text("Leaderboard")),
-      body: leaderboard.isEmpty
+      body: loading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
               padding: const EdgeInsets.all(20),
+              physics: const BouncingScrollPhysics(),
               itemCount: leaderboard.length,
               itemBuilder: (context, index) {
                 final user = leaderboard[index];

@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import 'signup_screen.dart';
 import 'main_page.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'admin_page.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -69,14 +71,28 @@ class _LoginScreenState extends State<LoginScreen> {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString("token", token);
 
+  Map<String, dynamic> decoded = JwtDecoder.decode(token);
+  bool isAdmin = (decoded["role"] ?? "user") == "admin";
+
   if (!mounted) return;
 
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => MainPage(token: token), // ✅ PASS IT
-    ),
-  );
+  
+
+   if (isAdmin) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminPage(token: token),
+      ),
+    );
+  } else {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MainPage(token: token),
+      ),
+    );
+  }
 } else {
         setState(() {
           errorMessage =
@@ -85,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() {
-        errorMessage = "Server not reachable. Check backend.";
+        errorMessage = "Network error. Please try again.";
       });
     }
 
