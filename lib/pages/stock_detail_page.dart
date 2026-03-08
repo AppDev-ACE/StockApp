@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:stockapp/core/constants.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 
 class CandleData {
@@ -49,7 +50,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
     final response = await http.get(
       Uri.parse(
-          "https://daksh-ldw4.onrender.com/candles?symbol=${widget.symbol}&range=$selectedRange"),
+          "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}&range=$selectedRange"),
     );
 
     if (response.statusCode == 200) {
