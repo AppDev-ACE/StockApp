@@ -1,7 +1,7 @@
 //import 'dart:convert';
 import 'package:flutter/material.dart';
 //import 'package:stockapp/core/constants.dart';
-//import '../services/socket_service.dart';
+import '../services/socket_service.dart';
 import '../provider/market_provider.dart';
 import '../core/theme/app_theme.dart';
 import 'stock_details_page.dart';
@@ -74,6 +74,8 @@ class _StockPageState extends State<StockPage> {
 
   Future<void> logout() async {
 
+    
+
   final confirm = await showDialog(
     context: context,
     builder: (context) {
@@ -102,6 +104,8 @@ class _StockPageState extends State<StockPage> {
   );
 
   if (confirm != true) return;
+
+  SocketService.disconnect();
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove("token");

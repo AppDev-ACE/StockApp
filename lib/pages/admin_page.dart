@@ -310,6 +310,8 @@ void _handleSocket(dynamic data){
 
   if (confirm != true) return;
 
+  SocketService.disconnect();
+
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove("token");
 
