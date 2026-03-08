@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:stockapp/core/constants.dart';
 
 class ApiService {
-  static const String baseUrl = "https://daksh-ldw4.onrender.com"; // web testing
+  static const String baseUrl = AppConstants.baseUrl; // web testing
 
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();

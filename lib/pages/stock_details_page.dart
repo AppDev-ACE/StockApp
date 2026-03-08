@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:stockapp/core/constants.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
@@ -29,13 +30,13 @@ class StockDetailScreen extends StatefulWidget {
 class _StockDetailScreenState extends State<StockDetailScreen> {
 
   List<CandlestickSpot> candles = [];
-
   WebSocketChannel? channel;
 
   int lastIndex = 0;
-  int maxCandles = 40;
+  int maxCandles = 200;
 
   double currentPrice = 0;
+  double previousPrice = 0;
 
   double minY = 0;
   double maxY = 0;
@@ -43,16 +44,23 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
   bool loading = true;
   bool placingOrder = false;
 
+  final TransformationController chartTransform =
+      TransformationController();
+  final ScrollController chartScroll = ScrollController();
+
   TextEditingController qtyController = TextEditingController();
 
   int quantity = 0;
   double avgPrice = 0;
+
+  CandlestickSpot? selectedCandle;
 
   @override
   void initState() {
     super.initState();
 
     currentPrice = widget.price;
+    previousPrice = widget.price;
 
     quantity = widget.quantity ?? 0;
     avgPrice = widget.avgPrice ?? 0;
@@ -61,14 +69,25 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
     connectLiveFeed();
   }
 
-  /// LOAD INITIAL CANDLES
+  /// AUTO SCROLL TO LATEST
+void scrollToLatest() {
+  if (chartScroll.hasClients) {
+    chartScroll.animateTo(
+      chartScroll.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+}
+
+ /// LOAD INITIAL CANDLES
   Future<void> loadInitialCandles() async {
 
     try {
 
       final res = await http.get(
         Uri.parse(
-          "https://daksh-ldw4.onrender.com/candles?symbol=${widget.symbol}&range=1H"
+            "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}&range=1H"
         ),
       );
 
@@ -81,9 +100,11 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
       lastIndex = data["currentIndex"];
 
       final trimmed =
-          raw.length > maxCandles ? raw.sublist(raw.length - maxCandles) : raw;
+      raw.length > maxCandles ? raw.sublist(raw.length - maxCandles) : raw;
 
       candles.clear();
+
+      int startIndex = max(0, lastIndex - trimmed.length + 1).floor();
 
       for (int i = 0; i < trimmed.length; i++) {
 
@@ -91,7 +112,7 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
 
         candles.add(
           CandlestickSpot(
-            x: i.toDouble(),
+            x: (startIndex + i).toDouble(),
             open: (c["open"]).toDouble(),
             high: (c["high"]).toDouble(),
             low: (c["low"]).toDouble(),
@@ -106,118 +127,142 @@ class _StockDetailScreenState extends State<StockDetailScreen> {
         loading = false;
       });
 
-    } catch (e) {}
+      Future.delayed(const Duration(milliseconds: 100), () {
+        //double candleWidth = MediaQuery.of(context).size.width / 30;
+        scrollToLatest();
+      });
+
+    } catch (_) {}
   }
 
   /// AUTO SCALE CHART
   void updateChartRange() {
 
+  if (candles.isEmpty) return;
+
+  double localMin = candles.map((c) => c.low).reduce(min);
+  double localMax = candles.map((c) => c.high).reduce(max);
+
+  double range = localMax - localMin;
+
+  if (range < 1) {
+    range = 1;
+  }
+
+  double padding = range * 0.10;
+
+  minY = localMin - padding;
+  maxY = localMax + padding;
+}
+
+ /// UPDATE CURRENT CANDLE
+  void updateCurrentCandle(double price) {
+
     if (candles.isEmpty) return;
 
-    double localMin =
-        candles.map((c) => c.low).reduce(min);
+    final last = candles.last;
 
-    double localMax =
-        candles.map((c) => c.high).reduce(max);
-
-    minY = localMin * 0.99;
-    maxY = localMax * 1.01;
+    candles[candles.length - 1] = CandlestickSpot(
+      x: last.x,
+      open: last.open,
+      high: max(last.high, price),
+      low: min(last.low, price),
+      close: price,
+    );
   }
 
   /// LIVE FEED
-void connectLiveFeed() {
+  void connectLiveFeed() {
 
-  void connect() {
+    void connect() {
 
-    channel = WebSocketChannel.connect(
-      Uri.parse("wss://daksh-ldw4.onrender.com?token=${widget.token}"),
-    );
+      channel = WebSocketChannel.connect(
+        Uri.parse("${AppConstants.wsUrl}?token=${widget.token}"),
+      );
 
-    channel!.stream.listen(
+      channel!.stream.listen(
 
-      (message) async {
+            (message) async {
 
-        final data = jsonDecode(message);
+          final data = jsonDecode(message);
 
-        if (data["type"] == "MARKET_TICK") {
+          if (data["type"] == "MARKET_TICK") {
 
-          final prices = Map<String, dynamic>.from(data["prices"]);
+            final prices = Map<String, dynamic>.from(data["prices"]);
 
-          if (prices.containsKey(widget.symbol)) {
-            setState(() {
-              currentPrice = prices[widget.symbol].toDouble();
-            });
-          }
+            if (prices.containsKey(widget.symbol)) {
 
-          int newIndex = data["currentCandleIndex"];
+              double price = prices[widget.symbol].toDouble();
 
-          if (newIndex > lastIndex) {
+              setState(() {
+                previousPrice = currentPrice;
+                currentPrice = price;
+                updateCurrentCandle(price);
+              });
+            }
 
-            lastIndex = newIndex;
+            int newIndex = data["currentCandleIndex"];
 
-            final res = await http.get(
-              Uri.parse(
-                "https://daksh-ldw4.onrender.com/candles?symbol=${widget.symbol}"
-              ),
-            );
+            if (newIndex > lastIndex) {
 
-            if (res.statusCode != 200) return;
+              lastIndex = newIndex;
 
-            final json = jsonDecode(res.body);
-            final latest = json["candles"].last;
+              final res = await http.get(
+                Uri.parse(
+                    "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}"
+                ),
+              );
 
-            final candle = CandlestickSpot(
-              x: candles.length.toDouble(),
-              open: (latest["open"]).toDouble(),
-              high: (latest["high"]).toDouble(),
-              low: (latest["low"]).toDouble(),
-              close: (latest["close"]).toDouble(),
-            );
+              if (res.statusCode != 200) return;
 
-            setState(() {
+              final json = jsonDecode(res.body);
+              final latest = json["candles"].last;
 
-              candles.add(candle);
+              final candle = CandlestickSpot(
+                x: lastIndex.toDouble(),
+                open: (latest["open"]).toDouble(),
+                high: (latest["high"]).toDouble(),
+                low: (latest["low"]).toDouble(),
+                close: (latest["close"]).toDouble(),
+              );
 
-              if (candles.length > maxCandles) {
+              setState(() {
 
-                candles.removeAt(0);
+                candles.add(candle);
 
-                for (int i = 0; i < candles.length; i++) {
-                  candles[i] = CandlestickSpot(
-                    x: i.toDouble(),
-                    open: candles[i].open,
-                    high: candles[i].high,
-                    low: candles[i].low,
-                    close: candles[i].close,
-                  );
+                if (candles.length > maxCandles) {
+                  candles.removeAt(0);
                 }
-              }
+                selectedCandle = null;
+                updateChartRange();
+              });
 
-              updateChartRange();
-            });
+              Future.delayed(const Duration(milliseconds: 60), () {
+
+                //double candleWidth =
+                   // MediaQuery.of(context).size.width / 30;
+
+                scrollToLatest();
+
+              });
+            }
           }
-        }
-      },
+        },
 
-      onDone: () {
+        onDone: () {
+          Future.delayed(const Duration(seconds: 3), connect);
+        },
 
-        print("WebSocket disconnected... reconnecting");
+        onError: (_) {
+          Future.delayed(const Duration(seconds: 3), connect);
+        },
+      );
+    }
 
-        Future.delayed(const Duration(seconds: 3), connect);
-      },
-
-      onError: (error) {
-
-        print("WebSocket error: $error");
-
-        Future.delayed(const Duration(seconds: 3), connect);
-      },
-    );
+    connect();
   }
 
-  connect();
-}
-  /// BUY STOCK
+  /// BUY
   Future<void> buyStock() async {
 
     int qty = int.tryParse(qtyController.text) ?? 0;
@@ -232,7 +277,7 @@ void connectLiveFeed() {
     try {
 
       final res = await http.post(
-        Uri.parse("https://daksh-ldw4.onrender.com/buy"),
+        Uri.parse("${AppConstants.baseUrl}/buy"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": widget.token
@@ -255,22 +300,22 @@ void connectLiveFeed() {
 
           quantity += qty;
 
-          avgPrice = ((avgPrice * (quantity - qty)) +
-                  (currentPrice * qty)) /
-              quantity;
+          avgPrice =
+              ((avgPrice * (quantity - qty)) + (currentPrice * qty)) /
+                  quantity;
         });
 
         showSnack("Bought $qty shares");
       }
 
-    } catch (e) {
-      showSnack("$qty");
+    } catch (_) {
+      showSnack("Buy failed");
     }
 
     setState(() => placingOrder = false);
   }
 
-  /// SELL STOCK
+  /// SELL
   Future<void> sellStock() async {
 
     int qty = int.tryParse(qtyController.text) ?? 0;
@@ -285,7 +330,7 @@ void connectLiveFeed() {
     try {
 
       final res = await http.post(
-        Uri.parse("https://daksh-ldw4.onrender.com/sell"),
+        Uri.parse("${AppConstants.baseUrl}/sell"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": widget.token
@@ -307,46 +352,46 @@ void connectLiveFeed() {
         setState(() {
 
           quantity -= qty;
-
           if (quantity < 0) quantity = 0;
+
         });
 
         showSnack("Sold $qty shares");
       }
 
-    } catch (e) {
-      showSnack("$e");
+    } catch (_) {
+      showSnack("Sell failed");
     }
 
     setState(() => placingOrder = false);
   }
 
   void showSnack(String msg) {
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg))
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   void dispose() {
     channel?.sink.close();
     qtyController.dispose();
+    chartScroll.dispose();
+    chartTransform.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
 
-    double currentValue =
-        quantity * currentPrice;
-
-    double pnl =
-        (currentPrice - avgPrice) * quantity;
+    double currentValue = quantity * currentPrice;
+    double pnl = (currentPrice - avgPrice) * quantity;
 
     bool positive = pnl >= 0;
 
+    bool marketUp = currentPrice >= previousPrice;
+
     return Scaffold(
+
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
       appBar: AppBar(
@@ -360,37 +405,34 @@ void connectLiveFeed() {
 
           const SizedBox(height: 10),
 
-          /// LIVE PRICE
+          /// PRICE
           Text(
             "₹ ${currentPrice.toStringAsFixed(2)}",
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 34,
               fontWeight: FontWeight.bold,
-              color: Colors.greenAccent,
+              color: marketUp
+                  ? Colors.greenAccent
+                  : Colors.redAccent,
             ),
           ),
 
           const SizedBox(height: 10),
 
-          /// USER POSITION
+          /// POSITION
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(14),
-
             decoration: BoxDecoration(
               color: const Color(0xFF161B22),
               borderRadius: BorderRadius.circular(12),
             ),
-
             child: Column(
               children: [
 
                 Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
-
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-
                     info("Shares", quantity.toString()),
                     info("Avg", "₹${avgPrice.toStringAsFixed(2)}"),
                     info("Value", "₹${currentValue.toStringAsFixed(0)}"),
@@ -414,33 +456,112 @@ void connectLiveFeed() {
 
           const SizedBox(height: 10),
 
-          /// CANDLE CHART
-          Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : Padding(
-                    padding: const EdgeInsets.all(16),
+        Builder(
+  builder: (_) {
 
-                    child: CandlestickChart(
-                      CandlestickChartData(
-                        candlestickSpots: candles,
-                        minY: minY,
-                        maxY: maxY,
+    if (candles.isEmpty) return const SizedBox();
 
-                        gridData: FlGridData(
-                          show: true,
-                          drawVerticalLine: false,
-                        ),
+    final display = selectedCandle ?? candles.last;
 
-                        borderData: FlBorderData(show: false),
+    bool bullish = display.close >= display.open;
+    Color color = bullish ? Colors.greenAccent : Colors.redAccent;
 
-                        titlesData: FlTitlesData(show: false),
-                      ),
-                    ),
-                  ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+
+          Expanded(child: ohlcFull("Open", display.open, color)),
+
+          Expanded(child: ohlcFull("High", display.high, color)),
+
+          Expanded(child: ohlcFull("Low", display.low, color)),
+
+          Expanded(child: ohlcFull("Close", display.close, color)),
+
+        ],
+      ),
+    );
+  },
+),
+
+
+//chArt
+        Expanded(
+          flex: 3,
+  child: loading
+      ? const Center(child: CircularProgressIndicator())
+      : Padding(
+          padding: const EdgeInsets.all(16),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+
+              const double candleWidth = 12; // candle thickness
+
+              double chartWidth =
+                  max(candles.length * candleWidth, constraints.maxWidth);
+
+            return  SingleChildScrollView(
+    controller: chartScroll,
+    scrollDirection: Axis.horizontal,
+    child: SizedBox(
+      width: chartWidth,
+      child: CandlestickChart(
+        CandlestickChartData(
+          candlestickSpots: candles,
+          minY: minY,
+          maxY: maxY,
+
+candlestickTouchData: CandlestickTouchData(
+  enabled: true,
+  handleBuiltInTouches: false,
+  touchCallback: (event, response) {
+
+    if (event is FlTapUpEvent ||
+        event is FlLongPressEnd ||
+        event is FlPanEndEvent) {
+
+      setState(() {
+        selectedCandle = null;
+      });
+
+      return;
+    }
+
+    if (response != null && response.touchedSpot != null) {
+      setState(() {
+        selectedCandle = response.touchedSpot!.spot;
+      });
+    }
+  },
+),
+
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: (maxY - minY) / 5,
           ),
 
-          /// TRADE PANEL
+          borderData: FlBorderData(show: false),
+
+          titlesData: FlTitlesData(show: false),
+
+          clipData: FlClipData.none(),
+        ),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      ),
+    ),
+  );
+
+           
+            },
+          ),
+        ),
+),
+
+         /// TRADE PANEL
           Container(
             padding: const EdgeInsets.all(16),
             color: const Color(0xFF161B22),
@@ -455,11 +576,14 @@ void connectLiveFeed() {
 
                   decoration: InputDecoration(
                     hintText: "Enter quantity",
-                    hintStyle: const TextStyle(color: Colors.grey),
+                    hintStyle:
+                    const TextStyle(color: Colors.grey),
                     filled: true,
-                    fillColor: Theme.of(context).scaffoldBackgroundColor,
+                    fillColor:
+                    Theme.of(context).scaffoldBackgroundColor,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius:
+                      BorderRadius.circular(10),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -472,13 +596,13 @@ void connectLiveFeed() {
 
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: placingOrder ? null : buyStock,
-
+                        onPressed:
+                        placingOrder ? null : buyStock,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.greenAccent,
+                          backgroundColor:
+                          Colors.greenAccent,
                           foregroundColor: Colors.black,
                         ),
-
                         child: const Text("BUY"),
                       ),
                     ),
@@ -487,22 +611,20 @@ void connectLiveFeed() {
 
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: placingOrder ? null : sellStock,
-
+                        onPressed:
+                        placingOrder ? null : sellStock,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.redAccent,
                         ),
-
                         child: const Text("SELL"),
                       ),
                     ),
+
                   ],
                 ),
               ],
             ),
           ),
-
-          const SizedBox(height: 10),
         ],
       ),
     );
@@ -532,5 +654,57 @@ void connectLiveFeed() {
         ),
       ],
     );
+
+    
   }
+
+  Widget ohlc(String label, double value) {
+
+  if (candles.isEmpty) {
+    return const SizedBox();
+  }
+
+  final display = selectedCandle ?? candles.last;
+
+  bool bullish = display.close >= display.open;
+
+  Color color = bullish ? Colors.greenAccent : Colors.redAccent;
+
+  return Text(
+    "$label: ${value.toStringAsFixed(2)}",
+    style: TextStyle(
+      color: color,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+    ),
+  );
+}
+
+Widget ohlcFull(String label, double value, Color color) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+
+      Text(
+        label,
+        style: const TextStyle(
+          color: Colors.grey,
+          fontSize: 11,
+        ),
+      ),
+
+      const SizedBox(height: 2),
+
+      Text(
+        value.toStringAsFixed(2),
+        style: TextStyle(
+          color: color,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+
+    ],
+  );
+}
 }

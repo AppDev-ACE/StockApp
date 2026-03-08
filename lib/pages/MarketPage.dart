@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:stockapp/core/constants.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/theme/app_theme.dart';
 import 'stock_details_page.dart';
@@ -38,7 +39,7 @@ class _MarketPageState extends State<MarketPage> {
   void connectSocket() {
 
     channel = WebSocketChannel.connect(
-      Uri.parse("wss://daksh-ldw4.onrender.com?token=${widget.token}")
+      Uri.parse("${AppConstants.wsUrl}?token=${widget.token}")
     );
 
     channel!.stream.listen((message) {

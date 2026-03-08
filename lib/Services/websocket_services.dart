@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:stockapp/core/constants.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class WebSocketService {
-  static const String wsUrl = "wss://daksh-ldw4.onrender.com";
+  static const String wsUrl = AppConstants.wsUrl;
 
   late WebSocketChannel _channel;
 
