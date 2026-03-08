@@ -45,11 +45,11 @@ class _AdminPageState extends State<AdminPage> {
 
       if (!mounted) return;
 
-      setState(() {
+      
         setState(() {
   leaderboard = List.from(data);
 });
-      });
+      
 
     } catch (_) {}
   }

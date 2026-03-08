@@ -20,6 +20,15 @@ class StockPage extends StatefulWidget {
 
 class _StockPageState extends State<StockPage> {
 
+  @override
+void initState() {
+  super.initState();
+
+  // Future.microtask(() {
+  //   context.read<MarketProvider>().connect(widget.token);
+  // });
+}
+
   //WebSocketChannel? channel;
   // double balance = 0;
   // double portfolioValue = 0;

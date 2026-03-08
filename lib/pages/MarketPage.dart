@@ -30,8 +30,8 @@ class _MarketPageState extends State<MarketPage> {
 
     /// connect socket via provider
     // Future.microtask(() {
-    //   context.read<MarketProvider>().connect(widget.token);
-    // });
+    //    context.read<MarketProvider>().connect(widget.token);
+    //  });
   }
 
   void applyFilter(String query, Map<String, double> prices) {
