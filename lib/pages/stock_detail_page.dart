@@ -34,7 +34,6 @@ class StockDetailPage extends StatefulWidget {
 }
 
 class _StockDetailPageState extends State<StockDetailPage> {
-
   List<CandleData> candles = [];
   bool isLoading = true;
   String selectedRange = "1D";
@@ -50,7 +49,8 @@ class _StockDetailPageState extends State<StockDetailPage> {
 
     final response = await http.get(
       Uri.parse(
-          "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}&range=$selectedRange"),
+        "${AppConstants.baseUrl}/candles?symbol=${widget.symbol}&range=$selectedRange",
+      ),
     );
 
     if (response.statusCode == 200) {
@@ -61,22 +61,16 @@ class _StockDetailPageState extends State<StockDetailPage> {
     setState(() => isLoading = false);
   }
 
-  double get currentPrice =>
-      candles.isNotEmpty ? candles.last.close : 0;
+  double get currentPrice => candles.isNotEmpty ? candles.last.close : 0;
 
   double get priceChange =>
-      candles.length > 1
-          ? currentPrice - candles.first.open
-          : 0;
+      candles.length > 1 ? currentPrice - candles.first.open : 0;
 
   double get percentChange =>
-      candles.length > 1
-          ? (priceChange / candles.first.open) * 100
-          : 0;
+      candles.length > 1 ? (priceChange / candles.first.open) * 100 : 0;
 
   @override
   Widget build(BuildContext context) {
-
     final bool isPositive = percentChange >= 0;
 
     return Scaffold(
@@ -85,15 +79,11 @@ class _StockDetailPageState extends State<StockDetailPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          widget.symbol,
-          style: const TextStyle(color: Colors.white),
-        ),
+        title: Text(widget.symbol, style: const TextStyle(color: Colors.white)),
       ),
 
       body: Column(
         children: [
-
           const SizedBox(height: 20),
 
           /// PRICE HEADER
@@ -101,19 +91,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
             children: [
               Text(
                 "₹ ${currentPrice.toStringAsFixed(2)}",
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: isPositive ? Colors.greenAccent : Colors.redAccent,
                 ),
               ),
               const SizedBox(height: 5),
               Text(
                 "${priceChange.toStringAsFixed(2)} (${percentChange.toStringAsFixed(2)}%)",
                 style: TextStyle(
-                  color: isPositive
-                      ? Colors.greenAccent
-                      : Colors.redAccent,
+                  color: isPositive ? Colors.greenAccent : Colors.redAccent,
                 ),
               ),
             ],
@@ -136,18 +124,17 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 8),
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.greenAccent
-                        : Colors.transparent,
+                    color: isSelected ? Colors.greenAccent : Colors.transparent,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     range,
                     style: TextStyle(
-                      color:
-                          isSelected ? Colors.black : Colors.white,
+                      color: isSelected ? Colors.black : Colors.white,
                     ),
                   ),
                 ),
@@ -160,30 +147,22 @@ class _StockDetailPageState extends State<StockDetailPage> {
           /// CANDLESTICK CHART
           Expanded(
             child: isLoading
-                ? const Center(
-                    child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : SfCartesianChart(
                     backgroundColor: Colors.transparent,
-                    zoomPanBehavior:
-                        ZoomPanBehavior(enablePinching: true),
-                    tooltipBehavior:
-                        TooltipBehavior(enable: true),
+                    zoomPanBehavior: ZoomPanBehavior(enablePinching: true),
+                    tooltipBehavior: TooltipBehavior(enable: true),
                     series: <CandleSeries>[
                       CandleSeries<CandleData, DateTime>(
                         dataSource: candles,
-                        xValueMapper:
-                            (CandleData data, _) => data.time,
-                        lowValueMapper:
-                            (CandleData data, _) => data.low,
-                        highValueMapper:
-                            (CandleData data, _) => data.high,
-                        openValueMapper:
-                            (CandleData data, _) => data.open,
-                        closeValueMapper:
-                            (CandleData data, _) => data.close,
+                        xValueMapper: (CandleData data, _) => data.time,
+                        lowValueMapper: (CandleData data, _) => data.low,
+                        highValueMapper: (CandleData data, _) => data.high,
+                        openValueMapper: (CandleData data, _) => data.open,
+                        closeValueMapper: (CandleData data, _) => data.close,
                         bullColor: Colors.greenAccent,
                         bearColor: Colors.redAccent,
-                      )
+                      ),
                     ],
                   ),
           ),
@@ -196,8 +175,8 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Colors.greenAccent),
+                      backgroundColor: Colors.greenAccent,
+                    ),
                     onPressed: () {},
                     child: const Text("BUY"),
                   ),
@@ -206,8 +185,8 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Colors.redAccent),
+                      backgroundColor: Colors.redAccent,
+                    ),
                     onPressed: () {},
                     child: const Text("SELL"),
                   ),

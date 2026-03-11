@@ -1,6 +1,4 @@
-//import 'dart:convert';
 import 'package:flutter/material.dart';
-//import 'package:stockapp/core/constants.dart';
 import '../services/socket_service.dart';
 import '../provider/market_provider.dart';
 import '../core/theme/app_theme.dart';
@@ -19,119 +17,55 @@ class StockPage extends StatefulWidget {
 }
 
 class _StockPageState extends State<StockPage> {
-
   @override
-void initState() {
-  super.initState();
-
-  // Future.microtask(() {
-  //   context.read<MarketProvider>().connect(widget.token);
-  // });
-}
-
-  //WebSocketChannel? channel;
-  // double balance = 0;
-  // double portfolioValue = 0;
-  // double netWorth = 0;
-  // double profitLoss = 0;
-
-  // List portfolio = [];
-
-  // bool connected = false;
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   connectSocket();
-  // }
-
-//   void connectSocket() {
-
-//   SocketService.addListener(_handleSocket);
-
-// }
-
-// void _handleSocket(dynamic data) {
-
-//   if (data["type"] == "PORTFOLIO_UPDATE") {
-
-//     if (!mounted) return;
-
-//     setState(() {
-
-//       balance = (data["balance"] ?? 0).toDouble();
-//       portfolioValue = (data["portfolioValue"] ?? 0).toDouble();
-//       netWorth = (data["netWorth"] ?? 0).toDouble();
-//       profitLoss = (data["profitLoss"] ?? 0).toDouble();
-
-//       portfolio = data["portfolio"] ?? [];
-
-//       connected = true;
-
-//     });
-
-//   }
-
-// }
- 
-  // @override
-  // void dispose() {
-  //   SocketService.removeListener(_handleSocket);
-  //   super.dispose();
-  // }
-
+  void initState() {
+    super.initState();
+  }
 
   Future<void> logout() async {
+    final confirm = await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Logout"),
+          content: const Text("Are you sure you want to logout?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text("Cancel"),
+            ),
 
-    
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text("Logout"),
+            ),
+          ],
+        );
+      },
+    );
 
-  final confirm = await showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to logout?"),
-        actions: [
+    if (confirm != true) return;
 
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context, false);
-            },
-            child: const Text("Cancel"),
-          ),
+    SocketService.disconnect();
 
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, true);
-            },
-            child: const Text("Logout"),
-          ),
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove("token");
 
-        ],
-      );
-    },
-  );
+    if (!mounted) return;
 
-  if (confirm != true) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
 
-  SocketService.disconnect();
-
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove("token");
-
-  if (!mounted) return;
-
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const LoginScreen(),
-    ),
-    (route) => false,
-  );
-}
   @override
   Widget build(BuildContext context) {
-
     final market = context.watch<MarketProvider>();
 
     final balance = market.balance;
@@ -151,22 +85,18 @@ void initState() {
         title: const Text("ACELL Portfolio"),
         centerTitle: true,
         actions: [
-    IconButton(
-      icon: const Icon(Icons.logout),
-      onPressed: logout,
-    )
-  ],
+          IconButton(icon: const Icon(Icons.logout), onPressed: logout),
+        ],
       ),
 
       body: portfolio.isEmpty && netWorth == 0
-    ? const Center(child: CircularProgressIndicator())
-    : SingleChildScrollView(
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   /// NET WORTH CARD
                   Container(
                     width: double.infinity,
@@ -180,7 +110,6 @@ void initState() {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         const Text(
                           "Total Net Worth",
                           style: TextStyle(color: AppTheme.textSecondary),
@@ -201,7 +130,6 @@ void initState() {
 
                         Row(
                           children: [
-
                             Icon(
                               positive
                                   ? Icons.arrow_upward
@@ -233,7 +161,6 @@ void initState() {
                   /// CASH + INVESTED
                   Row(
                     children: [
-
                       Expanded(
                         child: infoCard(
                           "Cash Balance",
@@ -283,18 +210,17 @@ void initState() {
                           itemCount: portfolio.length,
 
                           itemBuilder: (context, index) {
-
                             final stock = portfolio[index];
 
                             final symbol = stock["symbol"] ?? "";
                             final quantity = stock["quantity"] ?? 0;
-                            final avgPrice = (stock["avgPrice"] ?? 0).toDouble();
-                            final currentPrice = (stock["currentPrice"] ?? avgPrice).toDouble();
+                            final avgPrice = (stock["avgPrice"] ?? 0)
+                                .toDouble();
+                            final currentPrice =
+                                (stock["currentPrice"] ?? avgPrice).toDouble();
 
                             return GestureDetector(
-
                               onTap: () {
-
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -304,11 +230,12 @@ void initState() {
                                       token: widget.token,
                                       quantity: quantity,
                                       avgPrice: avgPrice,
-                                      marketRunning: context.read<MarketProvider>().marketRunning,  
+                                      marketRunning: context
+                                          .read<MarketProvider>()
+                                          .marketRunning,
                                     ),
                                   ),
                                 );
-
                               },
 
                               child: Container(
@@ -325,16 +252,12 @@ void initState() {
                                       MainAxisAlignment.spaceBetween,
 
                                   children: [
-
                                     Row(
                                       children: [
-
                                         CircleAvatar(
                                           backgroundColor: AppTheme.accentBlue,
                                           child: Text(
-                                            symbol.isNotEmpty
-                                                ? symbol[0]
-                                                : "?",
+                                            symbol.isNotEmpty ? symbol[0] : "?",
                                           ),
                                         ),
 
@@ -345,7 +268,6 @@ void initState() {
                                               CrossAxisAlignment.start,
 
                                           children: [
-
                                             Text(
                                               symbol,
                                               style: const TextStyle(
@@ -357,7 +279,8 @@ void initState() {
                                             Text(
                                               "$quantity shares",
                                               style: const TextStyle(
-                                                  color: AppTheme.textSecondary),
+                                                color: AppTheme.textSecondary,
+                                              ),
                                             ),
                                           ],
                                         ),
@@ -365,27 +288,28 @@ void initState() {
                                     ),
 
                                     Column(
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          "₹${currentPrice.toStringAsFixed(2)}",
+                                          style: TextStyle(
+                                            color: currentPrice >= avgPrice
+                                                ? AppTheme.accentGreen
+                                                : Colors.redAccent,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
 
-    Text(
-      "₹${currentPrice.toStringAsFixed(2)}",
-      style: const TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-
-    Text(
-      "Avg ₹${avgPrice.toStringAsFixed(1)}",
-      style: const TextStyle(
-        color: AppTheme.textSecondary,
-        fontSize: 12,
-      ),
-    ),
-
-  ],
-)
+                                        Text(
+                                          "Avg ₹${avgPrice.toStringAsFixed(1)}",
+                                          style: const TextStyle(
+                                            color: AppTheme.textSecondary,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
@@ -394,13 +318,11 @@ void initState() {
                         ),
                 ],
               ),
-            )
-          
+            ),
     );
   }
 
   Widget infoCard(String title, double value, IconData icon) {
-
     return Container(
       padding: const EdgeInsets.all(16),
 
@@ -412,10 +334,8 @@ void initState() {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           Row(
             children: [
-
               const Icon(Icons.circle, color: AppTheme.textSecondary, size: 10),
 
               const SizedBox(width: 6),
